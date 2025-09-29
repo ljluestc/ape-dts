@@ -1,0 +1,1005 @@
+================================================================================
+                    APE-DTS PRODUCT REQUIREMENTS DOCUMENT
+================================================================================
+
+Product Name: ape-dts
+Type: Data Migration and Synchronization Platform
+License: Open Source
+Architecture: Standalone, Lightweight
+Primary Language: Rust
+Repository: https://github.com/apecloud/ape-dts
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+ape-dts is a high-performance, lightweight data migration and synchronization
+tool designed to enable any-to-any data transfers between heterogeneous database
+systems. Built entirely in Rust, it provides data subscription, data processing,
+and Change Data Capture (CDC) capabilities without requiring third-party
+components or extra storage infrastructure.
+
+The platform delivers exceptional performance (71K+ rows/second snapshot, 26K+
+rows/second CDC) while maintaining a minimal footprint (71.4MB image size vs
+1.38GB for comparable solutions), making it ideal for cloud-native, containerized
+deployments and resource-constrained environments.
+
+CORE VALUE PROPOSITION:
+"ape-dts enables seamless, high-performance data migration between any database
+systems with minimal operational overhead, exceptional efficiency, and built-in
+data validation capabilities."
+
+
+================================================================================
+PRODUCT VISION
+================================================================================
+
+To provide the industry's fastest, most efficient, and operationally simplest
+data migration and synchronization solution for heterogeneous database
+environments, enabling enterprises to modernize their data infrastructure
+without vendor lock-in or performance compromises.
+
+
+================================================================================
+KEY PRODUCT FEATURES
+================================================================================
+
+1. ANY-TO-ANY DATA MIGRATION
+   - Universal data transfer capabilities
+   - Support for homogeneous and heterogeneous migrations
+   - Database-agnostic architecture
+   - No vendor lock-in
+   - Bidirectional synchronization support
+
+2. LIGHTWEIGHT & EFFICIENT
+   - Minimal resource footprint (71.4MB container image)
+   - No third-party component dependencies
+   - No external storage requirements
+   - Standalone operation
+   - Rust-based for memory safety and performance
+
+3. COMPREHENSIVE TASK TYPES
+   - Snapshot migration (full data copy)
+   - CDC (Change Data Capture) for real-time sync
+   - Structure migration (schema transfer)
+   - Data validation (check/revise/review)
+   - Resume from breakpoint for fault tolerance
+
+4. HIGH PERFORMANCE
+   - 71K+ rows/second (snapshot migration)
+   - 26K+ rows/second (CDC synchronization)
+   - Multiple parallel algorithms optimized per source/target
+   - Intelligent parallelization strategies
+   - Low source database load (8-18% CPU typical)
+
+5. ADVANCED DATA PROCESSING
+   - Database-level filtering and routing
+   - Table-level filtering and routing
+   - Column-level filtering and routing
+   - Lua scripting for custom data transformations
+   - ETL capabilities built-in
+
+6. OPERATIONAL FEATURES
+   - Resume at breakpoint for interrupted tasks
+   - Monitoring and position tracking
+   - Heartbeat mechanism for CDC health checks
+   - Two-way synchronization support
+   - SQL generation from CDC events
+
+
+================================================================================
+SUPPORTED DATABASE SYSTEMS
+================================================================================
+
+SOURCE DATABASES
+----------------
+- MySQL (all versions with binlog support)
+- PostgreSQL (all versions with logical replication)
+- MongoDB (replica set and sharded clusters)
+- Redis (RDB and AOF support)
+
+TARGET DATABASES
+----------------
+- MySQL
+- PostgreSQL
+- MongoDB
+- Redis
+- Apache Kafka
+- StarRocks
+- Apache Doris
+- ClickHouse
+- TiDB
+
+
+================================================================================
+TASK TYPE SUPPORT MATRIX
+================================================================================
+
+MYSQL SOURCE
+------------
+MySQL -> MySQL: Snapshot, CDC, Check/Revise/Review, Structure Migration
+MySQL -> Kafka: Snapshot, CDC
+MySQL -> StarRocks: Snapshot, CDC, Structure Migration
+MySQL -> ClickHouse: Snapshot, CDC, Structure Migration
+MySQL -> TiDB: Snapshot, CDC, Check/Revise/Review, Structure Migration
+MySQL -> Doris: Snapshot, CDC, Structure Migration
+
+POSTGRESQL SOURCE
+-----------------
+PostgreSQL -> PostgreSQL: Snapshot, CDC, Check/Revise/Review, Structure Migration
+PostgreSQL -> Kafka: Snapshot, CDC
+PostgreSQL -> StarRocks: Snapshot, CDC, Structure Migration
+PostgreSQL -> ClickHouse: Snapshot, CDC, Structure Migration
+PostgreSQL -> Doris: Snapshot, CDC, Structure Migration
+
+MONGODB SOURCE
+--------------
+MongoDB -> MongoDB: Snapshot, CDC, Check/Revise/Review
+
+REDIS SOURCE
+------------
+Redis -> Redis: Snapshot, CDC
+
+
+================================================================================
+TECHNICAL ARCHITECTURE
+================================================================================
+
+CORE MODULES
+------------
+
+1. dt-main
+   Description: Program entry point and orchestration
+   Responsibilities:
+   - Command-line interface
+   - Configuration parsing
+   - Task initialization
+   - Lifecycle management
+   - Feature flag handling (metrics, etc.)
+
+2. dt-precheck
+   Description: Pre-flight validation module
+   Responsibilities:
+   - Source database connectivity validation
+   - Target database connectivity validation
+   - Permission verification
+   - Configuration validation
+   - Early failure detection
+   - Compatibility checks
+
+3. dt-connector
+   Description: Database-specific extractors and sinkers
+   Responsibilities:
+   - MySQL extractor/sinker (binlog parsing, data extraction)
+   - PostgreSQL extractor/sinker (logical replication, WAL parsing)
+   - MongoDB extractor/sinker (oplog parsing)
+   - Redis extractor/sinker (RDB/AOF parsing)
+   - Kafka sinker (message production)
+   - StarRocks sinker (stream load integration)
+   - Doris sinker (stream load integration)
+   - ClickHouse sinker (bulk insertion)
+   - TiDB sinker (MySQL protocol)
+
+4. dt-pipeline
+   Description: Data flow orchestration between extractors and sinkers
+   Responsibilities:
+   - Stream processing coordination
+   - Data buffering and batching
+   - Backpressure management
+   - Error handling and retry logic
+   - Throughput optimization
+   - Memory management
+
+5. dt-parallelizer
+   Description: Parallel execution algorithms
+   Responsibilities:
+   - Source-specific parallelization strategies
+   - Target-specific parallelization strategies
+   - Task-type specific algorithms
+   - Dynamic worker pool management
+   - Load balancing
+   - Deadlock prevention
+
+6. dt-task
+   Description: Task configuration and assembly
+   Responsibilities:
+   - Task type detection (snapshot, CDC, check, structure)
+   - Component assembly (extractor + pipeline + sinker)
+   - Parallelization strategy selection
+   - Configuration application
+   - Task state management
+
+7. dt-common
+   Description: Shared utilities and infrastructure
+   Responsibilities:
+   - Common data structures
+   - Metadata management
+   - Position tracking (binlog position, WAL LSN, etc.)
+   - Utility functions
+   - Type conversions
+   - Error definitions
+
+8. dt-tests
+   Description: Integration test suite
+   Responsibilities:
+   - End-to-end task testing
+   - Database compatibility testing
+   - Performance benchmarking
+   - Regression testing
+   - CI/CD integration
+
+
+ARCHITECTURE DIAGRAM
+--------------------
+
+┌─────────────────────────────────────────────────────────────────┐
+│                          dt-main                                │
+│           (Entry Point, Configuration, Orchestration)           │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+    ┌─────────────────┐         ┌────────────────────┐
+    │   dt-precheck   │         │      dt-task       │
+    │  (Validation)   │         │  (Task Assembly)   │
+    └─────────────────┘         └─────────┬──────────┘
+                                          │
+                    ┌─────────────────────┼─────────────────────┐
+                    │                     │                     │
+                    ▼                     ▼                     ▼
+         ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐
+         │  dt-connector    │  │   dt-pipeline    │  │ dt-parallelizer │
+         │   (Extractors    │  │  (Data Flow)     │  │  (Concurrency)  │
+         │   & Sinkers)     │  │                  │  │                 │
+         └──────────────────┘  └──────────────────┘  └─────────────────┘
+                    │
+                    │
+                    ▼
+         ┌──────────────────┐
+         │    dt-common     │
+         │  (Shared Utils)  │
+         └──────────────────┘
+
+
+DATA FLOW ARCHITECTURE
+----------------------
+
+Source DB → Extractor → Pipeline → Sinker → Target DB
+              ↑           ↑          ↑
+              │           │          │
+              └───────────┴──────────┘
+                   dt-parallelizer
+                  (manages workers)
+
+
+================================================================================
+FUNCTIONAL REQUIREMENTS
+================================================================================
+
+1. SNAPSHOT MIGRATION
+   Description: Full data copy from source to target
+   Requirements:
+   - Table structure analysis and mapping
+   - Batch data extraction with configurable size
+   - Parallel table processing
+   - Data type conversion
+   - Position tracking for resume capability
+   - Progress monitoring
+   - Configurable parallelism levels
+
+2. CDC (CHANGE DATA CAPTURE)
+   Description: Real-time change synchronization
+   Requirements:
+   - Binlog/WAL/Oplog parsing
+   - Transaction boundary preservation
+   - Insert/Update/Delete event handling
+   - DDL change propagation
+   - Exactly-once or at-least-once semantics
+   - Low-latency synchronization (<1s typical)
+   - Heartbeat mechanism for connection health
+   - Position persistence for resume
+
+3. STRUCTURE MIGRATION
+   Description: Schema transfer between databases
+   Requirements:
+   - Table definition extraction
+   - Index definition extraction
+   - Constraint extraction
+   - Data type mapping
+   - Target-specific DDL generation
+   - Charset/Collation handling
+   - Partition definition handling
+
+4. DATA VALIDATION
+   Description: Data consistency verification
+   Requirements:
+   - Row count comparison
+   - Checksum validation
+   - Sample data verification
+   - Difference detection
+   - Automated data correction (revise)
+   - Validation reporting (review)
+   - Configurable validation strategies
+
+5. DATA FILTERING & ROUTING
+   Description: Selective data synchronization
+   Requirements:
+   - Database-level include/exclude rules
+   - Table-level include/exclude rules
+   - Column-level include/exclude rules
+   - WHERE clause filtering
+   - Target table/database routing
+   - Dynamic routing based on data content
+
+6. DATA TRANSFORMATION (ETL)
+   Description: In-flight data modification
+   Requirements:
+   - Lua script engine integration
+   - Per-table transformation scripts
+   - Per-column transformation functions
+   - Access to row data in scripts
+   - Error handling in transformations
+   - Performance optimization for scripts
+
+7. RESUME CAPABILITY
+   Description: Fault tolerance and recovery
+   Requirements:
+   - Position tracking (binlog position, LSN, timestamp)
+   - Periodic position persistence
+   - Automatic resume on restart
+   - No data loss on resume
+   - No duplicate data on resume
+   - Configurable checkpoint frequency
+
+8. MONITORING & OBSERVABILITY
+   Description: Operational visibility
+   Requirements:
+   - Task progress metrics
+   - Throughput metrics (rows/sec, bytes/sec)
+   - Lag metrics (CDC replication lag)
+   - Position information
+   - Error tracking
+   - Prometheus metrics export (optional feature)
+   - HTTP metrics endpoint
+
+
+================================================================================
+PERFORMANCE REQUIREMENTS
+================================================================================
+
+THROUGHPUT TARGETS
+------------------
+MySQL -> MySQL Snapshot:
+- 1c2g node: 71,000 rows/second
+- 2c4g node: 99,000 rows/second
+- 4c8g node: 126,000 rows/second
+
+MySQL -> MySQL CDC:
+- 1c2g node: 15,000 rows/second
+- 2c4g node: 24,000 rows/second
+- 4c8g node: 26,000 rows/second
+
+LATENCY REQUIREMENTS
+--------------------
+- CDC replication lag: <1 second (typical)
+- CDC replication lag: <5 seconds (99th percentile)
+- Event processing latency: <100ms
+
+RESOURCE EFFICIENCY
+-------------------
+- Source database CPU impact: <20%
+- Source database memory impact: <10%
+- Container image size: <100MB
+- Runtime memory: Configurable based on parallelism
+- Zero external dependencies
+
+
+================================================================================
+CONFIGURATION SYSTEM
+================================================================================
+
+CONFIGURATION FILE FORMAT
+-------------------------
+- TOML format
+- Sections: task, extractor, sinker, pipeline, parallelizer, filter, router
+- Environment variable substitution support
+- Secrets management integration
+
+KEY CONFIGURATION SECTIONS
+---------------------------
+
+[task]
+- task_type: snapshot, cdc, check, revise, review, struct
+- job_id: unique identifier
+- log_level: debug, info, warn, error
+
+[extractor]
+- db_type: mysql, pg, mongo, redis
+- url: connection string
+- server_id: MySQL server ID (for CDC)
+- slot_name: PostgreSQL replication slot (for CDC)
+
+[sinker]
+- db_type: mysql, pg, mongo, redis, kafka, starrocks, clickhouse, doris
+- url: connection string
+- batch_size: bulk insert batch size
+- batch_timeout: bulk insert timeout
+
+[pipeline]
+- buffer_size: internal buffer size
+- checkpoint_interval: position persistence frequency
+
+[parallelizer]
+- parallel_type: serial, parallel, rdb_parallel, mongo_parallel
+- parallel_size: worker count
+
+[filter]
+- do_dbs: databases to include
+- ignore_dbs: databases to exclude
+- do_tbs: tables to include
+- ignore_tbs: tables to exclude
+- do_events: event types to include (INSERT, UPDATE, DELETE)
+
+[router]
+- Table/database routing rules
+- Column mapping rules
+
+[runtime]
+- log_dir: log file directory
+- log_level: logging verbosity
+
+[metrics] (optional feature)
+- http_host: metrics HTTP server bind address
+- http_port: metrics HTTP server port
+- workers: HTTP server worker count
+- labels: Prometheus constant labels
+
+
+================================================================================
+PARALLELIZATION STRATEGIES
+================================================================================
+
+SNAPSHOT PARALLELIZATION
+------------------------
+1. Table-Level Parallelism
+   - Multiple tables processed concurrently
+   - Independent workers per table
+   - Automatic table scheduling
+
+2. Partition-Level Parallelism
+   - Partitioned tables split across workers
+   - Range-based partitioning for non-partitioned tables
+   - Primary key range distribution
+
+3. Chunk-Based Parallelism
+   - Large tables divided into chunks
+   - Configurable chunk size
+   - Dynamic load balancing
+
+CDC PARALLELIZATION
+-------------------
+1. Single-Threaded for Order Preservation
+   - Default for transactional consistency
+   - Maintains event ordering
+
+2. Table-Based Parallelism
+   - Independent tables processed in parallel
+   - Transaction boundaries preserved per table
+   - Deadlock prevention
+
+3. Transaction-Based Parallelism
+   - Non-conflicting transactions executed concurrently
+   - Dependency detection
+   - Automatic conflict resolution
+
+
+================================================================================
+DATA TYPE MAPPING
+================================================================================
+
+MYSQL TO POSTGRESQL
+-------------------
+TINYINT -> SMALLINT
+INT -> INTEGER
+BIGINT -> BIGINT
+FLOAT -> REAL
+DOUBLE -> DOUBLE PRECISION
+DECIMAL -> NUMERIC
+CHAR -> CHAR
+VARCHAR -> VARCHAR
+TEXT -> TEXT
+DATETIME -> TIMESTAMP
+JSON -> JSONB
+
+MYSQL TO CLICKHOUSE
+--------------------
+TINYINT -> Int8
+INT -> Int32
+BIGINT -> Int64
+FLOAT -> Float32
+DOUBLE -> Float64
+DECIMAL -> Decimal
+VARCHAR -> String
+DATETIME -> DateTime
+
+POSTGRESQL TO MYSQL
+--------------------
+SMALLINT -> SMALLINT
+INTEGER -> INT
+BIGINT -> BIGINT
+REAL -> FLOAT
+DOUBLE PRECISION -> DOUBLE
+NUMERIC -> DECIMAL
+CHAR -> CHAR
+VARCHAR -> VARCHAR
+TEXT -> TEXT
+TIMESTAMP -> DATETIME
+JSONB -> JSON
+
+(Additional mappings documented in detailed specification)
+
+
+================================================================================
+ERROR HANDLING & RECOVERY
+================================================================================
+
+ERROR CATEGORIES
+----------------
+1. Connection Errors
+   - Automatic retry with exponential backoff
+   - Configurable retry count
+   - Circuit breaker pattern
+
+2. Data Errors
+   - Row-level error capture
+   - Error logging with context
+   - Continue vs. abort strategies
+   - Dead letter queue for failed rows
+
+3. Schema Errors
+   - Pre-flight schema validation
+   - Type conversion errors
+   - Missing column handling
+   - Extra column handling
+
+4. Constraint Violations
+   - Primary key conflicts
+   - Foreign key violations
+   - Unique constraint violations
+   - Not-null violations
+
+RECOVERY MECHANISMS
+-------------------
+- Checkpoint-based resume
+- Transaction rollback and retry
+- Partial failure handling
+- Manual intervention hooks
+
+
+================================================================================
+SECURITY FEATURES
+================================================================================
+
+CONNECTION SECURITY
+-------------------
+- TLS/SSL support for all database connections
+- Certificate validation
+- Encrypted credential storage
+- Environment variable secrets
+
+ACCESS CONTROL
+--------------
+- Minimal privilege requirements documented
+- Read-only source access
+- Write-only target access
+- No DROP/TRUNCATE operations by default
+
+DATA SECURITY
+-------------
+- No persistent data storage
+- Memory-only data buffering
+- Secure credential handling
+- Audit logging
+
+
+================================================================================
+DEPLOYMENT OPTIONS
+================================================================================
+
+STANDALONE BINARY
+-----------------
+- Single executable
+- No runtime dependencies
+- Cross-platform (Linux, macOS, Windows)
+- Direct configuration file execution
+
+DOCKER CONTAINER
+----------------
+- Official Docker images
+- Multi-architecture support (amd64, arm64)
+- Minimal base image (scratch or distroless)
+- 71.4MB image size
+
+KUBERNETES
+----------
+- Helm charts available
+- CronJob for scheduled tasks
+- Job for one-time tasks
+- ConfigMap for configuration
+- Secret for credentials
+
+CLOUD PLATFORMS
+---------------
+- AWS ECS/Fargate compatible
+- Azure Container Instances compatible
+- Google Cloud Run compatible
+- Serverless deployment patterns
+
+
+================================================================================
+MONITORING & METRICS
+================================================================================
+
+BUILT-IN MONITORING
+-------------------
+- Log file output
+- Console output
+- Structured JSON logging
+
+PROMETHEUS METRICS (OPTIONAL FEATURE)
+--------------------------------------
+Enabled via "metrics" cargo feature
+
+Metrics Exposed:
+- ape_dts_extracted_rows_total: Total rows extracted
+- ape_dts_sinked_rows_total: Total rows written
+- ape_dts_extracted_bytes_total: Total bytes extracted
+- ape_dts_sinked_bytes_total: Total bytes written
+- ape_dts_extraction_rate: Rows per second extracted
+- ape_dts_sink_rate: Rows per second written
+- ape_dts_replication_lag_seconds: CDC lag in seconds
+- ape_dts_task_status: Task status (running, completed, failed)
+- ape_dts_errors_total: Total errors encountered
+
+HTTP Endpoint:
+- GET /metrics: Prometheus format metrics
+
+POSITION TRACKING
+-----------------
+- Current binlog position (MySQL)
+- Current LSN (PostgreSQL)
+- Current timestamp (MongoDB)
+- Current offset (Redis)
+- Checkpoint timestamps
+
+
+================================================================================
+TESTING STRATEGY
+================================================================================
+
+UNIT TESTS
+----------
+- Per-module unit tests
+- Rust standard test framework
+- Mock database connections
+- Property-based testing for data transformations
+
+INTEGRATION TESTS
+-----------------
+Location: dt-tests/
+
+Test Infrastructure:
+- Docker Compose for database setup
+- Automated test data generation
+- Multiple database version testing
+- Cross-database migration testing
+
+Test Categories:
+- Snapshot migration tests
+- CDC synchronization tests
+- Data validation tests
+- Structure migration tests
+- Resume from breakpoint tests
+- Filtering and routing tests
+- Lua transformation tests
+
+PERFORMANCE BENCHMARKS
+-----------------------
+- Throughput benchmarks
+- Resource utilization benchmarks
+- Latency benchmarks
+- Comparative benchmarks vs. competitors
+
+
+================================================================================
+QUALITY REQUIREMENTS
+================================================================================
+
+CODE QUALITY
+------------
+- Clippy linting (zero warnings)
+- Rustfmt code formatting
+- Documentation for public APIs
+- Example configurations
+- Integration test coverage >80%
+
+RELIABILITY
+-----------
+- Zero data loss guarantee (CDC)
+- Transactional consistency preservation
+- Automatic retry mechanisms
+- Graceful failure handling
+
+MAINTAINABILITY
+---------------
+- Modular architecture
+- Clear separation of concerns
+- Comprehensive logging
+- Configuration validation
+
+PERFORMANCE
+-----------
+- Memory-efficient streaming
+- Zero-copy optimizations where possible
+- Minimal allocations in hot paths
+- Async I/O throughout
+
+
+================================================================================
+DEVELOPMENT REQUIREMENTS
+================================================================================
+
+MINIMUM SUPPORTED RUST VERSION (MSRV)
+--------------------------------------
+- Rust 1.85.0
+
+BUILD REQUIREMENTS
+------------------
+- cargo build --release
+- cargo clippy --all-targets --all-features --workspace
+- cargo test --all-features --workspace
+
+DEPENDENCIES
+------------
+- tokio: async runtime
+- sqlx: database connectivity
+- serde: serialization
+- clap: CLI parsing
+- tracing: logging
+- mysql_async: MySQL-specific
+- tokio-postgres: PostgreSQL-specific
+- mongodb: MongoDB-specific
+- redis: Redis-specific
+- rdkafka: Kafka-specific
+- mlua: Lua scripting
+- actix-web: HTTP server (metrics feature)
+- prometheus: metrics export (metrics feature)
+
+
+================================================================================
+DOCUMENTATION REQUIREMENTS
+================================================================================
+
+USER DOCUMENTATION
+------------------
+1. Prerequisites guide
+2. Quick start tutorials per migration path
+3. Configuration reference
+4. Task type guides (snapshot, CDC, check, structure)
+5. Troubleshooting guide
+6. FAQ
+
+DEVELOPER DOCUMENTATION
+-----------------------
+1. Architecture overview
+2. Module responsibilities
+3. Contributing guide
+4. Testing guide
+5. Build instructions
+6. Release process
+
+API DOCUMENTATION
+-----------------
+- Rustdoc for all public APIs
+- Configuration schema documentation
+- Metrics documentation
+
+
+================================================================================
+ROADMAP & FUTURE ENHANCEMENTS
+================================================================================
+
+SHORT-TERM (NEXT 3-6 MONTHS)
+-----------------------------
+- Additional database support (Oracle, SQL Server)
+- Enhanced Lua scripting capabilities
+- Web UI for task management
+- REST API for programmatic control
+- Enhanced metrics and monitoring
+- Improved error messages
+- Performance optimizations
+
+MID-TERM (6-12 MONTHS)
+----------------------
+- Multi-source to single-target aggregation
+- Single-source to multi-target fanout
+- Complex routing and filtering rules
+- Data masking and anonymization
+- Schema evolution handling
+- Cloud-native storage backend integration (S3, GCS)
+- Advanced conflict resolution strategies
+
+LONG-TERM (12+ MONTHS)
+----------------------
+- AI-powered data mapping recommendations
+- Automatic performance tuning
+- Distributed execution across multiple nodes
+- Real-time analytics on data streams
+- Integration with data catalog systems
+- Blockchain data source/sink support
+- Time-series database support
+- Graph database support
+
+
+================================================================================
+SUCCESS METRICS
+================================================================================
+
+PERFORMANCE METRICS
+-------------------
+- Throughput: >70K rows/sec (snapshot)
+- Throughput: >15K rows/sec (CDC)
+- Resource efficiency: <20% source CPU impact
+- Image size: <100MB
+- Memory usage: <500MB per task (typical)
+
+RELIABILITY METRICS
+-------------------
+- Zero data loss in CDC operations
+- <0.01% error rate in snapshot operations
+- >99.9% task success rate
+- Mean time to recovery: <5 minutes
+
+ADOPTION METRICS
+----------------
+- GitHub stars growth
+- Docker image pulls
+- Community contributions
+- Production deployments
+- Enterprise adoptions
+
+OPERATIONAL METRICS
+-------------------
+- Setup time: <15 minutes (first task)
+- Configuration complexity: <50 lines (typical task)
+- Time to troubleshoot: <10 minutes (common issues)
+
+
+================================================================================
+COMPETITIVE ANALYSIS
+================================================================================
+
+VS. DEBEZIUM
+------------
+Advantages:
+- 15-30x faster snapshot performance
+- 5-9x faster CDC performance
+- 19x smaller container image (71MB vs 1.3GB)
+- No Kafka dependency
+- Standalone operation
+- Lower resource consumption
+
+VS. AWS DMS
+-----------
+Advantages:
+- Open source (no vendor lock-in)
+- Self-hosted (no cloud dependency)
+- Higher performance
+- More flexible filtering/routing
+- Lua scripting for transformations
+- Lower operational cost
+
+VS. ORACLE GOLDENGATE
+---------------------
+Advantages:
+- Open source vs. proprietary
+- Zero licensing costs
+- Modern Rust codebase
+- Cloud-native architecture
+- Simpler operational model
+
+
+================================================================================
+LICENSING & COMMERCIAL MODEL
+================================================================================
+
+OPEN SOURCE LICENSE
+-------------------
+- License type: Apache 2.0 / MIT (to be confirmed)
+- Free for commercial use
+- Community-driven development
+- Public roadmap
+
+COMMERCIAL OFFERINGS (POTENTIAL)
+--------------------------------
+1. Enterprise Support
+   - SLA guarantees
+   - Priority bug fixes
+   - Dedicated support team
+   - Architecture consulting
+
+2. Managed Service
+   - Hosted control plane
+   - Automated deployment
+   - Monitoring and alerting
+   - Automatic scaling
+
+3. Enterprise Features
+   - Web-based management console
+   - Multi-tenancy
+   - Advanced security features
+   - Audit and compliance reporting
+
+
+================================================================================
+SUPPORT & COMMUNITY
+================================================================================
+
+COMMUNITY SUPPORT
+-----------------
+- GitHub issues
+- Slack community (KubeBlocks workspace)
+- Stack Overflow tag
+- Documentation website
+
+ENTERPRISE SUPPORT
+------------------
+- Email support
+- Slack Connect support
+- Video call support
+- On-site consulting (optional)
+- Custom feature development
+
+
+================================================================================
+APPENDIX
+================================================================================
+
+TERMINOLOGY
+-----------
+- CDC: Change Data Capture - real-time change synchronization
+- Snapshot: Full data copy migration
+- Extractor: Component that reads data from source database
+- Sinker: Component that writes data to target database
+- Pipeline: Data flow orchestration layer
+- Parallelizer: Concurrency management component
+- Binlog: MySQL binary log
+- WAL: Write-Ahead Log (PostgreSQL)
+- Oplog: Operations log (MongoDB)
+- RDB: Redis Database (snapshot file)
+- AOF: Append-Only File (Redis)
+- LSN: Log Sequence Number (PostgreSQL position)
+- GTID: Global Transaction Identifier (MySQL)
+
+REFERENCES
+----------
+- GitHub Repository: https://github.com/apecloud/ape-dts
+- Documentation: /docs directory in repository
+- Slack Community: KubeBlocks workspace
+- Benchmarks: /docs/en/benchmark.md
+- Configuration Examples: /docs/templates/
+
+RELATED PROJECTS
+----------------
+- mysql-binlog-connector-rust: MySQL binlog parsing library
+- KubeBlocks: Kubernetes-native database operator
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+
+Document Version: 1.0
+Last Updated: 2025-09-27
+Prepared for: Development planning and Task Master PRD parsing

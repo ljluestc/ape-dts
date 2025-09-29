@@ -3,6 +3,10 @@ name = "dt-main"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "ape-dts"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 
@@ -14,3 +18,10 @@ dt-task = {path = "../dt-task", version = "0.1.0"}
 dt-precheck = {path = "../dt-precheck", version = "0.1.0"}
 
 tokio = { workspace = true }
+clap = { version = "4.0", features = ["derive"] }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.0"
