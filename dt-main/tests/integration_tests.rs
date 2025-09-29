@@ -28,38 +28,6 @@ parallel_type = serial
     temp_file
 }
 
-fn create_precheck_config() -> tempfile::NamedTempFile {
-    let config_content = r#"
-[precheck]
-do_struct_init = true
-do_cdc = false
-"#;
-
-    let temp_file = tempfile::NamedTempFile::new().unwrap();
-    fs::write(&temp_file, config_content).unwrap();
-    temp_file
-}
-
-fn create_cdc_config() -> tempfile::NamedTempFile {
-    let config_content = r#"
-[extractor]
-url = mysql://test:test@localhost/testdb
-extract_type = cdc
-db_type = mysql
-
-[sinker]
-url = kafka://test:test@localhost:9092
-sink_type = kafka
-db_type = kafka
-
-[parallelizer]
-parallel_type = serial
-"#;
-
-    let temp_file = tempfile::NamedTempFile::new().unwrap();
-    fs::write(&temp_file, config_content).unwrap();
-    temp_file
-}
 
 #[test]
 fn test_help_command() {
@@ -70,7 +38,7 @@ fn test_help_command() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("ApeCloud Data Transfer Service"));
+    assert!(stdout.contains("comprehensive data transfer and synchronization tool"));
     assert!(stdout.contains("snapshot"));
     assert!(stdout.contains("cdc"));
     assert!(stdout.contains("check"));

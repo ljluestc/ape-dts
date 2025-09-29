@@ -13,7 +13,6 @@ mod cli;
 use cli::{Cli, Commands};
 
 const ENV_SHUTDOWN_TIMEOUT_SECS: &str = "SHUTDOWN_TIMEOUT_SECS";
-const DEFAULT_CONFIG_FILE: &str = "config.ini";
 
 
 #[tokio::main]

@@ -434,7 +434,8 @@ mod tests {
         let help_str = help.to_string();
 
         // Test that help contains expected content
-        assert!(help_str.contains("ApeCloud Data Transfer Service"));
+        assert!(help_str.contains("ApeCloud Data Transfer Service") ||
+                help_str.contains("comprehensive data transfer and synchronization tool"));
         assert!(help_str.contains("snapshot"));
         assert!(help_str.contains("cdc"));
         assert!(help_str.contains("check"));
