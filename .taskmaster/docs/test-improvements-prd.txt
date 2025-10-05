@@ -1,0 +1,318 @@
+# Product Requirements Document: Test Coverage Improvements for ape-dts
+
+## Project Overview
+Enhance test coverage and quality across the ape-dts project, focusing on critical components that currently lack comprehensive testing. This initiative will improve code reliability, maintainability, and confidence in production deployments.
+
+## Background
+The ape-dts project is a comprehensive data transfer service supporting multiple databases and replication modes. While some components have good test coverage (e.g., dt-main with 37 tests), other critical modules require additional testing to ensure robustness and prevent regressions.
+
+## Objectives
+1. Achieve comprehensive test coverage for task_runner.rs and related core components
+2. Implement integration tests for database operations and data transfer workflows
+3. Add end-to-end tests for complete migration scenarios
+4. Establish performance benchmarks and regression tests
+5. Improve test documentation and test maintenance practices
+
+## Target Components
+
+### 1. Task Runner Module (dt-task/src/task_runner.rs)
+**Priority: High**
+
+Requirements:
+- Write unit tests for TaskRunner initialization and configuration loading
+- Test task lifecycle management (start, pause, resume, stop)
+- Test error handling and recovery mechanisms
+- Verify parallel execution and worker pool management
+- Test checkpoint and resume functionality
+- Validate metrics collection and reporting (if metrics feature enabled)
+- Test graceful shutdown and cleanup
+
+Test Types:
+- Unit tests for individual methods
+- Integration tests with mock databases
+- Property-based tests for edge cases
+
+### 2. Data Extractor Components
+**Priority: High**
+
+Requirements:
+- Test snapshot extraction for different database types (MySQL, PostgreSQL)
+- Test CDC (Change Data Capture) extraction and binlog parsing
+- Validate data type conversions and transformations
+- Test connection pooling and retry logic
+- Test large dataset handling and memory management
+- Verify cursor/pagination behavior
+
+Test Scenarios:
+- Full snapshot extraction
+- Incremental CDC replication
+- Connection failures and retries
+- Schema changes during extraction
+- Large BLOB/CLOB handling
+
+### 3. Data Sinker Components
+**Priority: High**
+
+Requirements:
+- Test data writing to different target databases
+- Test batch operations and transaction handling
+- Validate data integrity and constraint handling
+- Test conflict resolution strategies
+- Test Kafka sink operations
+- Verify error handling for write failures
+
+Test Scenarios:
+- Batch inserts with configurable batch sizes
+- Handling of duplicate keys
+- Transaction rollback scenarios
+- Target database unavailability
+- Data validation before write
+
+### 4. Parallelizer Module
+**Priority: Medium**
+
+Requirements:
+- Test serial execution mode
+- Test parallel execution with multiple workers
+- Validate work distribution and load balancing
+- Test thread safety and concurrent access
+- Verify backpressure handling
+- Test worker failure and recovery
+
+Test Scenarios:
+- Single-threaded execution
+- Multi-threaded execution with varying worker counts
+- Worker crash and restart
+- Resource contention scenarios
+
+### 5. Configuration Management
+**Priority: Medium**
+
+Requirements:
+- Test configuration file parsing (INI format)
+- Validate configuration validation logic
+- Test configuration overrides from CLI
+- Test default value handling
+- Verify configuration hot-reload (if supported)
+- Test invalid configuration scenarios
+
+Test Scenarios:
+- Valid configuration files
+- Missing required fields
+- Invalid values (wrong types, out of range)
+- Configuration inheritance and defaults
+- Environment variable substitution
+
+### 6. Data Type Conversion and Mapping
+**Priority: Medium**
+
+Requirements:
+- Test data type mapping between different database systems
+- Validate special case handling (NULL, empty strings, dates)
+- Test character encoding conversions
+- Test numeric precision and scale handling
+- Verify JSON/XML data handling
+
+Test Scenarios:
+- MySQL to PostgreSQL type conversions
+- PostgreSQL to MySQL type conversions
+- Edge cases (MIN/MAX values, NULL handling)
+- Unicode and multi-byte character handling
+- Timezone conversions for datetime types
+
+### 7. Error Handling and Resilience
+**Priority: High**
+
+Requirements:
+- Test retry mechanisms with exponential backoff
+- Validate circuit breaker patterns
+- Test error reporting and logging
+- Test graceful degradation scenarios
+- Verify dead letter queue handling (if applicable)
+
+Test Scenarios:
+- Transient network failures
+- Database deadlocks and timeouts
+- Out of memory conditions
+- Corrupted data handling
+- Partial failure scenarios
+
+### 8. Performance and Benchmarking
+**Priority: Low**
+
+Requirements:
+- Create benchmark tests for critical paths
+- Test performance with different batch sizes
+- Measure throughput for various workloads
+- Profile memory usage and identify leaks
+- Establish baseline performance metrics
+
+Benchmarks:
+- Snapshot transfer rate (rows/second)
+- CDC replication lag
+- Memory usage during large transfers
+- CPU utilization across worker threads
+
+### 9. Integration Tests
+**Priority: High**
+
+Requirements:
+- End-to-end test for snapshot migration
+- End-to-end test for CDC replication
+- Test complete struct migration workflow
+- Test data validation and consistency checks
+- Test multi-table migrations with dependencies
+
+Test Infrastructure:
+- Use Testcontainers for real database instances
+- Create reusable test fixtures and data generators
+- Implement test data cleanup and isolation
+- Set up CI/CD integration for automated testing
+
+### 10. Documentation and Test Utilities
+**Priority: Low**
+
+Requirements:
+- Document testing strategy and best practices
+- Create helper functions for common test scenarios
+- Implement test data generators
+- Create mock implementations for external dependencies
+- Document how to run and debug tests
+
+Deliverables:
+- Testing guidelines document
+- Shared test utilities crate
+- Mock database implementations
+- Test data generation tools
+
+## Success Criteria
+
+1. **Coverage Metrics**
+   - Achieve >80% code coverage for core modules
+   - 100% coverage for critical error paths
+   - All public APIs have associated tests
+
+2. **Test Quality**
+   - All tests are deterministic and reproducible
+   - Tests run in isolation without dependencies
+   - Fast unit tests (<100ms each)
+   - Integration tests complete in <5 minutes
+
+3. **Reliability**
+   - Zero flaky tests in CI/CD pipeline
+   - All tests pass consistently across environments
+   - Clear test failure messages and debugging info
+
+4. **Maintainability**
+   - Tests are well-documented and easy to understand
+   - Test code follows project conventions
+   - Minimal test duplication through shared utilities
+
+## Implementation Phases
+
+### Phase 1: Foundation (Week 1-2)
+- Set up test infrastructure and utilities
+- Implement tests for TaskRunner core functionality
+- Create mock implementations for databases
+
+### Phase 2: Core Components (Week 3-4)
+- Complete extractor tests
+- Complete sinker tests
+- Implement parallelizer tests
+
+### Phase 3: Integration (Week 5-6)
+- End-to-end snapshot tests
+- End-to-end CDC tests
+- Configuration management tests
+
+### Phase 4: Quality & Performance (Week 7-8)
+- Error handling tests
+- Performance benchmarks
+- Documentation and cleanup
+
+## Technical Considerations
+
+### Testing Tools
+- Use Rust's built-in test framework
+- Leverage Testcontainers for database testing
+- Use criterion for benchmarking
+- Consider proptest for property-based testing
+
+### Test Data
+- Create representative test datasets
+- Include edge cases (empty tables, large blobs, special characters)
+- Use anonymized production data where appropriate
+
+### CI/CD Integration
+- All tests run automatically on PR
+- Separate fast unit tests from slower integration tests
+- Nightly runs for full test suite including benchmarks
+- Code coverage reporting integrated into PR workflow
+
+## Risks and Mitigation
+
+1. **Risk:** Test execution time becomes prohibitive
+   **Mitigation:** Use test parallelization, mock external dependencies, implement test tiering
+
+2. **Risk:** Flaky tests due to timing or concurrency issues
+   **Mitigation:** Proper synchronization, deterministic test data, retry logic where appropriate
+
+3. **Risk:** Test maintenance burden
+   **Mitigation:** DRY principles, shared utilities, clear documentation
+
+4. **Risk:** Database dependencies slow down development
+   **Mitigation:** Testcontainers for isolation, in-memory databases where possible
+
+## Out of Scope
+- Performance optimization (focus is on testing existing functionality)
+- New feature development
+- Refactoring existing code (unless required for testability)
+- Load testing or stress testing
+
+## Appendix
+
+### Example Test Structure
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_runner_initialization() {
+        // Given: a valid configuration
+        let config = create_test_config();
+
+        // When: initializing TaskRunner
+        let runner = TaskRunner::new(&config);
+
+        // Then: should succeed
+        assert!(runner.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_execution() {
+        // Given: source and target databases with test data
+        let (source, target) = setup_test_databases().await;
+
+        // When: running snapshot
+        let result = run_snapshot(source, target).await;
+
+        // Then: data should be replicated correctly
+        assert_eq!(result.rows_transferred, EXPECTED_ROW_COUNT);
+        assert!(verify_data_integrity().await);
+    }
+}
+```
+
+### Key Metrics to Track
+- Test count by module
+- Code coverage percentage
+- Test execution time
+- Flaky test rate
+- Bug detection rate (tests catching issues before production)
+
+---
+**Document Version:** 1.0
+**Last Updated:** 2025-10-05
+**Owner:** Development Team
