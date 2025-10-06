@@ -1,6 +1,9 @@
 pub mod base_pipeline;
+pub mod filter_processor;
 pub mod http_server_pipeline;
 pub mod lua_processor;
+pub mod processor_chain;
+pub mod router_processor;
 
 use async_trait::async_trait;
 

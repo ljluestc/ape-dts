@@ -8,17 +8,22 @@ use serde::{Deserialize, Serialize};
 use crate::meta::dcl_meta::dcl_type::DclType;
 use crate::{
     config::{
-        config_enums::DbType, config_token_parser::ConfigTokenParser, filter_config::FilterConfig,
+        config_enums::DbType,
+        config_token_parser::ConfigTokenParser,
+        filter_config::{FilterConfig, TableContentFilter, FilterOperator, MatchMode, ContentFilterRule},
     },
     meta::{
         ddl_meta::ddl_type::DdlType, row_type::RowType,
         struct_meta::structure::structure_type::StructureType,
+        col_value::ColValue,
     },
     utils::sql_util::SqlUtil,
 };
 
 type IgnoreCols = HashMap<(String, String), HashSet<String>>;
+type DoCols = HashMap<(String, String), HashSet<String>>;
 type WhereConditions = HashMap<(String, String), String>;
+type ContentFilters = HashMap<(String, String), TableContentFilter>;
 
 const JSON_PREFIX: &str = "json:";
 
@@ -30,12 +35,14 @@ pub struct RdbFilter {
     pub do_tbs: HashSet<(String, String)>,
     pub ignore_tbs: HashSet<(String, String)>,
     pub ignore_cols: IgnoreCols,
+    pub do_cols: DoCols,
     pub do_events: HashSet<String>,
     pub do_structures: HashSet<String>,
     pub do_ddls: HashSet<String>,
     pub do_dcls: HashSet<String>,
     pub ignore_cmds: HashSet<String>,
     pub where_conditions: WhereConditions,
+    pub content_filters: ContentFilters,
     pub cache: DashMap<(String, String), bool>,
 }
 
@@ -48,12 +55,14 @@ impl RdbFilter {
             do_tbs: Self::parse_pair_tokens(&config.do_tbs, db_type)?,
             ignore_tbs: Self::parse_pair_tokens(&config.ignore_tbs, db_type)?,
             ignore_cols: Self::parse_ignore_cols(&config.ignore_cols)?,
+            do_cols: Self::parse_do_cols(&config.do_cols)?,
             do_events: Self::parse_single_tokens(&config.do_events, db_type)?,
             do_structures: Self::parse_single_tokens(&config.do_structures, db_type)?,
             do_ddls: Self::parse_single_tokens(&config.do_ddls, db_type)?,
             do_dcls: Self::parse_single_tokens(&config.do_dcls, db_type)?,
             ignore_cmds: Self::parse_single_tokens(&config.ignore_cmds, db_type)?,
             where_conditions: Self::parse_where_conditions(&config.where_conditions)?,
+            content_filters: Self::parse_content_filters(&config.content_filters)?,
             cache: DashMap::new(),
         })
     }
@@ -273,6 +282,154 @@ impl RdbFilter {
             results.insert((i.db, i.tb), i.condition);
         }
         Ok(results)
+    }
+
+    fn parse_do_cols(config_str: &str) -> anyhow::Result<DoCols> {
+        let mut results = DoCols::new();
+        if config_str.trim().is_empty() {
+            return Ok(results);
+        }
+        // do_cols=json:[{"db":"test_db","tb":"tb_1","do_cols":["f_0","f_1"]}]
+        #[derive(Serialize, Deserialize)]
+        struct DoColsType {
+            db: String,
+            tb: String,
+            do_cols: HashSet<String>,
+        }
+        let config: Vec<DoColsType> =
+            serde_json::from_str(config_str.trim_start_matches(JSON_PREFIX))?;
+        for i in config {
+            results.insert((i.db, i.tb), i.do_cols);
+        }
+        Ok(results)
+    }
+
+    fn parse_content_filters(config_str: &str) -> anyhow::Result<ContentFilters> {
+        let mut results = ContentFilters::new();
+        if config_str.trim().is_empty() {
+            return Ok(results);
+        }
+        // content_filters=json:[{"db":"test_db","tb":"tb_1","rules":[{"column":"status","operator":"eq","value":"active"}],"match_mode":"and"}]
+        let config: Vec<TableContentFilter> =
+            serde_json::from_str(config_str.trim_start_matches(JSON_PREFIX))?;
+        for filter in config {
+            results.insert((filter.db.clone(), filter.tb.clone()), filter);
+        }
+        Ok(results)
+    }
+
+    pub fn get_do_cols(&self, schema: &str, tb: &str) -> Option<&HashSet<String>> {
+        self.do_cols.get(&(schema.to_string(), tb.to_string()))
+    }
+
+    pub fn filter_row_content(
+        &self,
+        schema: &str,
+        tb: &str,
+        col_values: &HashMap<String, ColValue>,
+    ) -> bool {
+        if let Some(filter) = self.content_filters.get(&(schema.to_string(), tb.to_string())) {
+            return !Self::evaluate_content_filter(filter, col_values);
+        }
+        false
+    }
+
+    fn evaluate_content_filter(
+        filter: &TableContentFilter,
+        col_values: &HashMap<String, ColValue>,
+    ) -> bool {
+        let results: Vec<bool> = filter
+            .rules
+            .iter()
+            .map(|rule| Self::evaluate_rule(rule, col_values))
+            .collect();
+
+        match filter.match_mode {
+            MatchMode::And => results.iter().all(|&x| x),
+            MatchMode::Or => results.iter().any(|&x| x),
+        }
+    }
+
+    fn evaluate_rule(rule: &ContentFilterRule, col_values: &HashMap<String, ColValue>) -> bool {
+        let col_value = match col_values.get(&rule.column) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        match &rule.operator {
+            FilterOperator::Eq => Self::compare_eq(col_value, &rule.value),
+            FilterOperator::Ne => !Self::compare_eq(col_value, &rule.value),
+            FilterOperator::Gt => Self::compare_numeric(col_value, &rule.value, |a, b| a > b),
+            FilterOperator::Gte => Self::compare_numeric(col_value, &rule.value, |a, b| a >= b),
+            FilterOperator::Lt => Self::compare_numeric(col_value, &rule.value, |a, b| a < b),
+            FilterOperator::Lte => Self::compare_numeric(col_value, &rule.value, |a, b| a <= b),
+            FilterOperator::Contains => Self::compare_contains(col_value, &rule.value),
+            FilterOperator::Regex => Self::compare_regex(col_value, &rule.value),
+            FilterOperator::In => Self::compare_in(col_value, &rule.value),
+            FilterOperator::NotIn => !Self::compare_in(col_value, &rule.value),
+        }
+    }
+
+    fn compare_eq(col_value: &ColValue, target: &str) -> bool {
+        match col_value.to_option_string() {
+            Some(s) => s == target,
+            None => target.is_empty() || target == "null",
+        }
+    }
+
+    fn compare_numeric<F>(col_value: &ColValue, target: &str, compare: F) -> bool
+    where
+        F: Fn(f64, f64) -> bool,
+    {
+        let col_num = match col_value {
+            ColValue::Tiny(v) => Some(*v as f64),
+            ColValue::Short(v) => Some(*v as f64),
+            ColValue::Long(v) => Some(*v as f64),
+            ColValue::LongLong(v) => Some(*v as f64),
+            ColValue::UnsignedTiny(v) => Some(*v as f64),
+            ColValue::UnsignedShort(v) => Some(*v as f64),
+            ColValue::UnsignedLong(v) => Some(*v as f64),
+            ColValue::UnsignedLongLong(v) => Some(*v as f64),
+            ColValue::Float(v) => Some(*v as f64),
+            ColValue::Double(v) => Some(*v),
+            ColValue::Year(v) => Some(*v as f64),
+            _ => col_value.to_option_string().and_then(|s| s.parse::<f64>().ok()),
+        };
+
+        if let Some(col_num) = col_num {
+            if let Ok(target_num) = target.parse::<f64>() {
+                return compare(col_num, target_num);
+            }
+        }
+        false
+    }
+
+    fn compare_contains(col_value: &ColValue, target: &str) -> bool {
+        match col_value.to_option_string() {
+            Some(s) => s.contains(target),
+            None => false,
+        }
+    }
+
+    fn compare_regex(col_value: &ColValue, pattern: &str) -> bool {
+        match col_value.to_option_string() {
+            Some(s) => {
+                if let Ok(re) = Regex::new(pattern) {
+                    return re.is_match(&s);
+                }
+                false
+            }
+            None => false,
+        }
+    }
+
+    fn compare_in(col_value: &ColValue, values_str: &str) -> bool {
+        // values_str should be comma-separated: "value1,value2,value3"
+        let values: HashSet<String> = values_str.split(',').map(|s| s.trim().to_string()).collect();
+        match col_value.to_option_string() {
+            Some(s) => values.contains(&s),
+            None => values.contains("null") || values.contains(""),
+        }
     }
 }
 

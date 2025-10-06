@@ -1,7 +1,8 @@
-use anyhow::Ok;
 use dt_common::{
     config::{
-        config_enums::DbType, config_token_parser::ConfigTokenParser, router_config::RouterConfig,
+        config_enums::DbType,
+        config_token_parser::ConfigTokenParser,
+        router_config::{RouterConfig, ContentRoute},
     },
     meta::{
         ddl_meta::{ddl_data::DdlData, ddl_statement::DdlStatement},
@@ -17,6 +18,7 @@ use serde::{Deserialize, Serialize};
 type SchemaMap = HashMap<String, String>;
 type TbMap = HashMap<(String, String), (String, String)>;
 type TbColMap = HashMap<(String, String), HashMap<String, String>>;
+type ContentRoutes = HashMap<(String, String), ContentRoute>;
 
 const JSON_PREFIX: &str = "json:";
 
@@ -30,6 +32,8 @@ pub struct RdbRouter {
     pub col_map: TbColMap,
     // HashMap<(src_schema, src_tb), String>
     pub topic_map: HashMap<(String, String), String>,
+    // Content-based routing rules
+    pub content_routes: ContentRoutes,
 }
 
 impl RdbRouter {
@@ -40,16 +44,19 @@ impl RdbRouter {
                 tb_map,
                 col_map,
                 topic_map,
+                content_routes,
             } => {
                 let schema_map = Self::parse_schema_map(schema_map, db_type)?;
                 let tb_map = Self::parse_tb_map(tb_map, db_type)?;
                 let col_map = Self::parse_col_map(col_map)?;
                 let topic_map = Self::parse_topic_map(topic_map, db_type)?;
+                let content_routes = Self::parse_content_routes(content_routes)?;
                 Ok(Self {
                     schema_map,
                     tb_map,
                     col_map,
                     topic_map,
+                    content_routes,
                 })
             }
         }
@@ -116,6 +123,8 @@ impl RdbRouter {
             col_map: reverse_tb_col_map,
             // topic_map should not be reversed
             topic_map: self.topic_map.clone(),
+            // content_routes should not be reversed
+            content_routes: self.content_routes.clone(),
         }
     }
 
@@ -297,6 +306,43 @@ impl RdbRouter {
         }
         Ok(results)
     }
+
+    fn parse_content_routes(config_str: &str) -> anyhow::Result<ContentRoutes> {
+        let mut results = ContentRoutes::new();
+        if config_str.trim().is_empty() {
+            return Ok(results);
+        }
+        // content_routes=json:[{"db":"test_db","tb":"tb_1","routes":[...]}]
+        let config: Vec<ContentRoute> =
+            serde_json::from_str(config_str.trim_start_matches(JSON_PREFIX))?;
+        for route in config {
+            results.insert((route.db.clone(), route.tb.clone()), route);
+        }
+        Ok(results)
+    }
+
+    /// Route row data based on content-based routing rules
+    /// Returns (dst_schema, dst_tb, opt_topic) if content routing applies, None otherwise
+    pub fn route_by_content(
+        &self,
+        schema: &str,
+        tb: &str,
+        col_values: &HashMap<String, ColValue>,
+    ) -> Option<(String, String, Option<String>)> {
+        if let Some(route_config) = self.content_routes.get(&(schema.to_string(), tb.to_string())) {
+            // Convert ColValue HashMap to String HashMap for evaluation
+            let str_map: HashMap<String, String> = col_values
+                .iter()
+                .filter_map(|(k, v)| v.to_option_string().map(|s| (k.clone(), s)))
+                .collect();
+
+            if let Some(target) = route_config.find_route(&str_map) {
+                return Some((target.db, target.tb, target.topic));
+            }
+        }
+        None
+    }
+
 }
 
 #[cfg(test)]

@@ -614,15 +614,23 @@ impl TaskConfig {
         Ok(FilterConfig {
             do_schemas: loader.get_optional(FILTER, "do_dbs"),
             ignore_schemas: loader.get_optional(FILTER, "ignore_dbs"),
+            do_schemas_regex: loader.get_optional(FILTER, "do_dbs_regex"),
+            ignore_schemas_regex: loader.get_optional(FILTER, "ignore_dbs_regex"),
             do_tbs: loader.get_optional(FILTER, "do_tbs"),
             ignore_tbs: loader.get_optional(FILTER, "ignore_tbs"),
+            do_tbs_regex: loader.get_optional(FILTER, "do_tbs_regex"),
+            ignore_tbs_regex: loader.get_optional(FILTER, "ignore_tbs_regex"),
             ignore_cols: loader.get_optional(FILTER, "ignore_cols"),
+            do_cols: loader.get_optional(FILTER, "do_cols"),
+            do_cols_regex: loader.get_optional(FILTER, "do_cols_regex"),
+            ignore_cols_regex: loader.get_optional(FILTER, "ignore_cols_regex"),
             do_events: loader.get_optional(FILTER, "do_events"),
             do_ddls: loader.get_optional(FILTER, "do_ddls"),
             do_dcls: loader.get_optional(FILTER, "do_dcls"),
             do_structures: loader.get_with_default(FILTER, "do_structures", ASTRISK.to_string()),
             ignore_cmds: loader.get_optional(FILTER, "ignore_cmds"),
             where_conditions: loader.get_optional(FILTER, "where_conditions"),
+            content_filters: loader.get_optional(FILTER, "content_filters"),
         })
     }
 
@@ -632,6 +640,7 @@ impl TaskConfig {
             tb_map: loader.get_optional(ROUTER, "tb_map"),
             col_map: loader.get_optional(ROUTER, "col_map"),
             topic_map: loader.get_optional(ROUTER, "topic_map"),
+            content_routes: loader.get_optional(ROUTER, "content_routes"),
         })
     }
 
